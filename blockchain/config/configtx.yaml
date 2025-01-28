@@ -1,0 +1,134 @@
+# Channel configuration for dVPN IoT System
+Organizations:
+    - &OrdererOrg
+        Name: OrdererOrg
+        ID: OrdererMSP
+        MSPDir: /opt/dvpn-iot/blockchain/crypto/orderer/msp
+        Policies:
+            Readers:
+                Type: Signature
+                Rule: "OR('OrdererMSP.member')"
+            Writers:
+                Type: Signature
+                Rule: "OR('OrdererMSP.member')"
+            Admins:
+                Type: Signature
+                Rule: "OR('OrdererMSP.admin')"
+
+    - &DVPN
+        Name: DVPNMSP
+        ID: DVPNMSP
+        MSPDir: /opt/dvpn-iot/blockchain/crypto/peer/msp
+        Policies:
+            Readers:
+                Type: Signature
+                Rule: "OR('DVPNMSP.admin', 'DVPNMSP.peer', 'DVPNMSP.client')"
+            Writers:
+                Type: Signature
+                Rule: "OR('DVPNMSP.admin', 'DVPNMSP.client')"
+            Admins:
+                Type: Signature
+                Rule: "OR('DVPNMSP.admin')"
+            Endorsement:
+                Type: Signature
+                Rule: "OR('DVPNMSP.peer')"
+        AnchorPeers:
+            - Host: peer0.dvpn.example.com
+              Port: 7051
+
+Capabilities:
+    Channel: &ChannelCapabilities
+        V2_0: true
+    Orderer: &OrdererCapabilities
+        V2_0: true
+    Application: &ApplicationCapabilities
+        V2_0: true
+
+Application: &ApplicationDefaults
+    Organizations:
+    Policies:
+        Readers:
+            Type: ImplicitMeta
+            Rule: "ANY Readers"
+        Writers:
+            Type: ImplicitMeta
+            Rule: "ANY Writers"
+        Admins:
+            Type: ImplicitMeta
+            Rule: "MAJORITY Admins"
+        LifecycleEndorsement:
+            Type: ImplicitMeta
+            Rule: "MAJORITY Endorsement"
+        Endorsement:
+            Type: ImplicitMeta
+            Rule: "MAJORITY Endorsement"
+    Capabilities:
+        <<: *ApplicationCapabilities
+
+Orderer: &OrdererDefaults
+    OrdererType: etcdraft
+    Addresses:
+        - orderer.example.com:7050
+    BatchTimeout: 2s
+    BatchSize:
+        MaxMessageCount: 500
+        AbsoluteMaxBytes: 98 MB
+        PreferredMaxBytes: 2 MB
+    EtcdRaft:
+        Consenters:
+            - Host: orderer.example.com
+              Port: 7050
+              ClientTLSCert: /opt/dvpn-iot/blockchain/crypto/orderer/tls/server.crt
+              ServerTLSCert: /opt/dvpn-iot/blockchain/crypto/orderer/tls/server.crt
+    Organizations:
+    Policies:
+        Readers:
+            Type: ImplicitMeta
+            Rule: "ANY Readers"
+        Writers:
+            Type: ImplicitMeta
+            Rule: "ANY Writers"
+        Admins:
+            Type: ImplicitMeta
+            Rule: "MAJORITY Admins"
+        BlockValidation:
+            Type: ImplicitMeta
+            Rule: "ANY Writers"
+    Capabilities:
+        <<: *OrdererCapabilities
+
+Channel: &ChannelDefaults
+    Policies:
+        Readers:
+            Type: ImplicitMeta
+            Rule: "ANY Readers"
+        Writers:
+            Type: ImplicitMeta
+            Rule: "ANY Writers"
+        Admins:
+            Type: ImplicitMeta
+            Rule: "MAJORITY Admins"
+    Capabilities:
+        <<: *ChannelCapabilities
+
+Profiles:
+    DVPNOrdererGenesis:
+        <<: *ChannelDefaults
+        Orderer:
+            <<: *OrdererDefaults
+            Organizations:
+                - *OrdererOrg
+        Consortiums:
+            DVPNConsortium:
+                Organizations:
+                    - *DVPN
+    
+    DVPNChannel:
+        Consortium: DVPNConsortium
+        <<: *ChannelDefaults
+        Application:
+            <<: *ApplicationDefaults
+            Organizations:
+                - *DVPN
+            Capabilities:
+                <<: *ApplicationCapabilities

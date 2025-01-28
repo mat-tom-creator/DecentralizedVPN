@@ -1,0 +1,34 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - "alert.rules"
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['localhost:9093']
+
+scrape_configs:
+  - job_name: 'vpn_nodes'
+    static_configs:
+      - targets: ['localhost:9100']
+        labels:
+          instance: 'vpn_node_1'
+
+  - job_name: 'blockchain_nodes'
+    static_configs:
+      - targets: ['localhost:9440']
+        labels:
+          instance: 'fabric_node_1'
+
+  - job_name: 'iot_devices'
+    static_configs:
+      - targets: ['localhost:9101']
+        labels:
+          instance: 'iot_gateway'
+
+  - job_name: 'node'
+    static_configs:
+      - targets: ['localhost:9100']

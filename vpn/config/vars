@@ -1,0 +1,66 @@
+#!/bin/bash
+
+# Easy-RSA variables for PKI management
+set -e
+
+# Basic configuration
+export EASYRSA_PKI="/opt/dvpn-iot/vpn/certificates"
+export EASYRSA_REQ_COUNTRY="US"
+export EASYRSA_REQ_PROVINCE="California"
+export EASYRSA_REQ_CITY="San Francisco"
+export EASYRSA_REQ_ORG="dVPN IoT Network"
+export EASYRSA_REQ_EMAIL="admin@dvpn.example.com"
+export EASYRSA_REQ_OU="VPN Services"
+export EASYRSA_REQ_CN="dVPN-IoT-CA"
+export EASYRSA_KEY_SIZE=4096
+export EASYRSA_CA_EXPIRE=3650
+export EASYRSA_CERT_EXPIRE=1080
+export EASYRSA_CRL_DAYS=180
+export EASYRSA_TEMP_DIR="/tmp/easyrsa"
+export EASYRSA_NSS_COMPAT=1
+export EASYRSA_SSL_CONF="/etc/ssl/openssl.cnf"
+export EASYRSA_DIGEST="sha512"
+
+# PKI directory structure
+export EASYRSA_CA_DIR="${EASYRSA_PKI}/ca"
+export EASYRSA_SERVER_DIR="${EASYRSA_PKI}/server"
+export EASYRSA_CLIENTS_DIR="${EASYRSA_PKI}/clients"
+export EASYRSA_CRL_DIR="${EASYRSA_PKI}/crl"
+export EASYRSA_DH_KEY_SIZE=2048
+
+# OpenVPN configuration
+export OPENVPN_SERVER_SUBNET="10.8.0.0"
+export OPENVPN_SERVER_NETMASK="255.255.255.0"
+export OPENVPN_PROTOCOL="udp"
+export OPENVPN_PORT="1194"
+export OPENVPN_SERVER_CONFIG="/opt/dvpn-iot/vpn/config/server.conf"
+export OPENVPN_CLIENT_CONFIG_DIR="/opt/dvpn-iot/vpn/config/clients"
+export OPENVPN_STATUS_LOG="/var/log/openvpn/openvpn-status.log"
+export OPENVPN_LOG_DIR="/opt/dvpn-iot/logs/vpn"
+
+# Security settings
+export OPENVPN_CIPHER="AES-256-GCM"
+export OPENVPN_AUTH="SHA512"
+export OPENVPN_TLS_VERSION_MIN="1.2"
+export OPENVPN_DH_CURVE="secp384r1"
+export OPENVPN_TLS_CIPHER="TLS-ECDHE-ECDSA-WITH-AES-256-GCM-SHA384"
+export OPENVPN_HMAC_ALG="SHA512"
+
+# Network settings
+export OPENVPN_MTU="1500"
+export OPENVPN_FRAGMENT="1300"
+export OPENVPN_MSS="1200"
+
+# Client configuration
+export CLIENT_CONFIG_TEMPLATE="/opt/dvpn-iot/vpn/config/client.conf.template"
+export CLIENT_CONNECT_SCRIPT="/opt/dvpn-iot/vpn/scripts/client-connect.sh"
+export CLIENT_DISCONNECT_SCRIPT="/opt/dvpn-iot/vpn/scripts/client-disconnect.sh"
+
+# Monitoring configuration
+export MONITORING_INTERVAL="60"
+export MONITORING_SCRIPT="/opt/dvpn-iot/vpn/scripts/monitor-vpn.sh"
+export PROMETHEUS_METRICS_PORT="9176"
+
+# Backup configuration
+export BACKUP_DIR="/var/backups/dvpn-iot/vpn"
+export BACKUP_RETENTION_DAYS="30"

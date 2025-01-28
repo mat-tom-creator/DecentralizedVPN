@@ -1,0 +1,152 @@
+version: '3.7'
+
+volumes:
+  orderer.example.com:
+  peer0.dvpn.example.com:
+  peer1.dvpn.example.com:
+
+networks:
+  dvpn_net:
+    name: dvpn_net
+
+services:
+  orderer.example.com:
+    container_name: orderer.example.com
+    image: hyperledger/fabric-orderer:2.5
+    environment:
+      - FABRIC_LOGGING_SPEC=INFO
+      - ORDERER_GENERAL_LISTENADDRESS=0.0.0.0
+      - ORDERER_GENERAL_LISTENPORT=7050
+      - ORDERER_GENERAL_GENESISMETHOD=file
+      - ORDERER_GENERAL_GENESISFILE=/var/hyperledger/orderer/orderer.genesis.block
+      - ORDERER_GENERAL_LOCALMSPID=OrdererMSP
+      - ORDERER_GENERAL_LOCALMSPDIR=/var/hyperledger/orderer/msp
+      - ORDERER_OPERATIONS_LISTENADDRESS=0.0.0.0:8443
+      - ORDERER_METRICS_PROVIDER=prometheus
+      # TLS configuration
+      - ORDERER_GENERAL_TLS_ENABLED=true
+      - ORDERER_GENERAL_TLS_PRIVATEKEY=/var/hyperledger/orderer/tls/server.key
+      - ORDERER_GENERAL_TLS_CERTIFICATE=/var/hyperledger/orderer/tls/server.crt
+      - ORDERER_GENERAL_TLS_ROOTCAS=[/var/hyperledger/orderer/tls/ca.crt]
+    working_dir: /opt/gopath/src/github.com/hyperledger/fabric
+    command: orderer
+    volumes:
+      - ../config/genesis.block:/var/hyperledger/orderer/orderer.genesis.block
+      - ../crypto/orderer/msp:/var/hyperledger/orderer/msp
+      - ../crypto/orderer/tls:/var/hyperledger/orderer/tls
+      - orderer.example.com:/var/hyperledger/production/orderer
+    ports:
+      - 7050:7050
+      - 8443:8443
+    networks:
+      - dvpn_net
+
+  peer0.dvpn.example.com:
+    container_name: peer0.dvpn.example.com
+    extends:
+      file: peer-base.yaml
+      service: peer-base
+    environment:
+      - CORE_PEER_ID=peer0.dvpn.example.com
+      - CORE_PEER_ADDRESS=peer0.dvpn.example.com:7051
+      - CORE_PEER_LISTENADDRESS=0.0.0.0:7051
+      - CORE_PEER_CHAINCODEADDRESS=peer0.dvpn.example.com:7052
+      - CORE_PEER_CHAINCODELISTENADDRESS=0.0.0.0:7052
+      - CORE_PEER_GOSSIP_BOOTSTRAP=peer1.dvpn.example.com:7051
+      - CORE_PEER_GOSSIP_EXTERNALENDPOINT=peer0.dvpn.example.com:7051
+      - CORE_PEER_LOCALMSPID=DVPNMSP
+      - CORE_OPERATIONS_LISTENADDRESS=0.0.0.0:9443
+    volumes:
+      - ../crypto/peer0/msp:/etc/hyperledger/fabric/msp
+      - ../crypto/peer0/tls:/etc/hyperledger/fabric/tls
+      - peer0.dvpn.example.com:/var/hyperledger/production
+    ports:
+      - 7051:7051
+      - 7052:7052
+      - 9443:9443
+    networks:
+      - dvpn_net
+
+  peer1.dvpn.example.com:
+    container_name: peer1.dvpn.example.com
+    extends:
+      file: peer-base.yaml
+      service: peer-base
+    environment:
+      - CORE_PEER_ID=peer1.dvpn.example.com
+      - CORE_PEER_ADDRESS=peer1.dvpn.example.com:7051
+      - CORE_PEER_LISTENADDRESS=0.0.0.0:7051
+      - CORE_PEER_CHAINCODEADDRESS=peer1.dvpn.example.com:7052
+      - CORE_PEER_CHAINCODELISTENADDRESS=0.0.0.0:7052
+      - CORE_PEER_GOSSIP_BOOTSTRAP=peer0.dvpn.example.com:7051
+      - CORE_PEER_GOSSIP_EXTERNALENDPOINT=peer1.dvpn.example.com:7051
+      - CORE_PEER_LOCALMSPID=DVPNMSP
+      - CORE_OPERATIONS_LISTENADDRESS=0.0.0.0:10443
+    volumes:
+      - ../crypto/peer1/msp:/etc/hyperledger/fabric/msp
+      - ../crypto/peer1/tls:/etc/hyperledger/fabric/tls
+      - peer1.dvpn.example.com:/var/hyperledger/production
+    ports:
+      - 8051:7051
+      - 8052:7052
+      - 10443:10443
+    networks:
+      - dvpn_net
+
+  cli:
+    container_name: cli
+    image: hyperledger/fabric-tools:2.5
+    tty: true
+    stdin_open: true
+    environment:
+      - GOPATH=/opt/gopath
+      - CORE_VM_ENDPOINT=unix:///host/var/run/docker.sock
+      - FABRIC_LOGGING_SPEC=INFO
+      - CORE_PEER_ID=cli
+      - CORE_PEER_ADDRESS=peer0.dvpn.example.com:7051
+      - CORE_PEER_LOCALMSPID=DVPNMSP
+      - CORE_PEER_TLS_ENABLED=true
+      - CORE_PEER_TLS_CERT_FILE=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peer0/tls/server.crt
+      - CORE_PEER_TLS_KEY_FILE=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peer0/tls/server.key
+      - CORE_PEER_TLS_ROOTCERT_FILE=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peer0/tls/ca.crt
+      - CORE_PEER_MSPCONFIGPATH=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peer0/msp
+    working_dir: /opt/gopath/src/github.com/hyperledger/fabric/peer
+    command: /bin/bash
+    volumes:
+      - /var/run/:/host/var/run/
+      - ../chaincode:/opt/gopath/src/github.com/chaincode
+      - ../crypto:/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/
+      - ../scripts:/opt/gopath/src/github.com/hyperledger/fabric/peer/scripts/
+      - ../config:/opt/gopath/src/github.com/hyperledger/fabric/peer/config/
+    depends_on:
+      - orderer.example.com
+      - peer0.dvpn.example.com
+      - peer1.dvpn.example.com
+    networks:
+      - dvpn_net
+
+  prometheus:
+    container_name: prometheus
+    image: prom/prometheus:latest
+    volumes:
+      - ../monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - 9090:9090
+    networks:
+      - dvpn_net
+
+  grafana:
+    container_name: grafana
+    image: grafana/grafana:latest
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - ../monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - ../monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+    ports:
+      - 3000:3000
+    depends_on:
+      - prometheus
+    networks:
+      - dvpn_net

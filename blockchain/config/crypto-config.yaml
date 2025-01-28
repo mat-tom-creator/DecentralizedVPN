@@ -1,0 +1,265 @@
+# Crypto configuration for dVPN IoT System
+OrdererOrgs:
+  - Name: Orderer
+    Domain: example.com
+    EnableNodeOUs: true
+    Specs:
+      - Hostname: orderer
+        SANS:
+          - localhost
+          - 127.0.0.1
+
+PeerOrgs:
+  - Name: DVPN
+    Domain: dvpn.example.com
+    EnableNodeOUs: true
+    Template:
+      Count: 2
+      SANS:
+        - localhost
+        - 127.0.0.1
+    Users:
+      Count: 1
+
+    # Node OUs configuration
+    # These are used to classify certificates for different roles within an organization
+    OrganizationalUnitIdentifiers:
+      - Certificate: cacerts/ca.dvpn.example.com-cert.pem
+        OrganizationalUnitIdentifier: admin
+      - Certificate: cacerts/ca.dvpn.example.com-cert.pem
+        OrganizationalUnitIdentifier: peer
+      - Certificate: cacerts/ca.dvpn.example.com-cert.pem
+        OrganizationalUnitIdentifier: client
+      - Certificate: cacerts/ca.dvpn.example.com-cert.pem
+        OrganizationalUnitIdentifier: orderer
+
+    # Certificate Specifications
+    CA:
+      Country: US
+      Province: California
+      Locality: San Francisco
+      OrganizationalUnit: Hyperledger Fabric
+      StreetAddress: ["123 Example Street"]
+      PostalCode: "94111"
+
+    # Fabric-CA Servers
+    # These will be used if you want to use fabric-ca for certificate management
+    CA:
+      Hostname: ca
+      Country: US
+      Province: California
+      Locality: San Francisco
+      OrganizationalUnit: Hyperledger Fabric
+      StreetAddress: ["123 Example Street"]
+      PostalCode: "94111"
+      CommonName: ca.dvpn.example.com
+      SANS:
+        - localhost
+        - 127.0.0.1
+
+    # TLS Certificates
+    TLS:
+      Country: US
+      Province: California
+      Locality: San Francisco
+      OrganizationalUnit: Hyperledger Fabric
+      StreetAddress: ["123 Example Street"]
+      PostalCode: "94111"
+      CommonName: tls.dvpn.example.com
+      SANS:
+        - localhost
+        - 127.0.0.1
+
+    # Node specifications
+    Specs:
+      - Hostname: peer0
+        CommonName: peer0.dvpn.example.com
+        Role: peer
+        SANS:
+          - localhost
+          - 127.0.0.1
+      - Hostname: peer1
+        CommonName: peer1.dvpn.example.com
+        Role: peer
+        SANS:
+          - localhost
+          - 127.0.0.1
+
+    # Admin user specifications
+    AdminOUs:
+      - OrganizationalUnit: admin
+        Certificate: adminCerts/admin-cert.pem
+        PrivateKey: adminCerts/admin-key.pem
+
+    # User specifications
+    Users:
+      - Name: user1
+        Type: client
+        Affiliation: org1.department1
+        Attributes:
+          hf.Registrar.Roles: client
+          hf.Registrar.DelegateRoles: client
+          hf.Revoker: true
+          hf.AffiliationMgr: true
+
+# Crypto material configuration
+CryptoConfig:
+  OrdererOrgs:
+    - Name: Orderer
+      Domain: example.com
+      Specs:
+        - Hostname: orderer
+          CommonName: orderer.example.com
+          SANS:
+            - localhost
+            - 127.0.0.1
+
+# Security configuration
+SecurityConfig:
+  # Identity configurations
+  Identities:
+    PasswordAttempts: 3
+    AllowRemove: true
+    
+  # Signing configurations
+  Signing:
+    Default:
+      Usage:
+        - digital signature
+      ValidityPeriod: 8760h # 1 year
+    Profiles:
+      ca:
+        Usage:
+          - cert sign
+          - crl sign
+        ExpiryPeriod: 43800h # 5 years
+      tls:
+        Usage:
+          - signing
+          - key encipherment
+          - server auth
+          - client auth
+          - key agreement
+        ExpiryPeriod: 8760h
+
+  # Key configurations
+  Keys:
+    Algorithm: ecdsa
+    Size: 256
+
+# Defaults for various aspects of the config
+Defaults:
+  # Expiration settings for generated certificates
+  ExpiryPeriod:
+    CA: 43800h        # 5 years
+    Intermediate: 43800h  # 5 years
+    Identity: 8760h      # 1 year
+    TLS: 8760h          # 1 year
+    
+  # Crypto settings
+  Crypto:
+    Family: ecdsa
+    Algorithm: P256-SHA256
+    Hash: SHA2-256
+    
+  # Template settings
+  Templates:
+    Count: 1
+    Start: 0
+    Hostname: 
+      Pattern: "{{.Prefix}}{{.Index}}"
+      Prefix: ""
+    CommonName:
+      Pattern: "{{.Hostname}}.{{.Domain}}"
+
+# CSR (Certificate Signing Request) configuration
+CSR:
+  CN: "Fabric-CA-Server"
+  Names:
+    - C: "US"
+      ST: "California"
+      L: "San Francisco"
+      O: "dVPN IoT Network"
+      OU: "Fabric CA Server"
+  Hosts:
+    - localhost
+    - 127.0.0.1
+  KeyRequest:
+    Algo: "ecdsa"
+    Size: 256
+
+# Intermediate CA configuration
+IntermediateCA:
+  ParentServer:
+    URL: 
+    CAName: 
+  Enrollment:
+    Profile: 
+    Label: 
+  TLS:
+    CertFiles:
+    Client:
+      CertFile:
+      KeyFile:
+
+# BCCSP (Blockchain Crypto Service Provider) Security Level
+BCCSP:
+  Default: SW
+  SW:
+    Hash: SHA2
+    Security: 256
+    FileKeyStore:
+      KeyStore:
+
+# Certificate Validation
+CertificateValidation:
+  # Certificate Expiry Warning Threshold
+  ExpiryWarningThreshold: 168h # 7 days
+  
+  # Certificate Revocation
+  Revocation:
+    # Enable CRL checks
+    EnableCRLChecks: true
+    
+    # CRL refresh interval
+    CRLRefreshInterval: 24h
+    
+    # CRL expiry padding
+    CRLExpiryPadding: 168h # 7 days
+
+# Registration configurations
+Registration:
+  # Number of attempts to verify a registration
+  MaxEnrollments: -1 # Infinite enrollments
+  
+  # Attributes that can be added during registration
+  Attributes:
+    - name: "role"
+      require: true
+      # Default value if not specified during registration
+      value: "client"
+    
+    - name: "level"
+      require: true
+      value: "1"
+
+# Identity Mixer (Idemix) configuration
+Idemix:
+  IssuerPublicKeyfile: idemix/IssuerPublicKey
+  IssuerSecretKeyfile: idemix/IssuerSecretKey
+  RevocationPublicKeyfile: idemix/RevocationPublicKey
+  RevocationPrivateKeyfile: idemix/RevocationPrivateKey
+  RHPoolSize: 1000
+  NonceExpiration: 15s
+  NonceSweepInterval: 15m
+
+# Operations Service configuration
+Operations:
+  ListenAddress: 127.0.0.1:9443
+  TLS:
+    Enabled: true
+    CertFile: tls/cert.pem
+    KeyFile: tls/key.pem
+    ClientCertRequired: false
+    ClientCACertFiles:
+      - tls/ca.pem

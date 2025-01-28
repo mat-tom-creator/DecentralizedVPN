@@ -1,0 +1,169 @@
+# Core configuration for dVPN IoT System
+logging:
+  level: info
+  format: '%{color}%{time:2006-01-02 15:04:05.000 MST} [%{module}] %{shortfunc} -> %{level:.4s} %{id:03x}%{color:reset} %{message}'
+
+peer:
+  id: dvpn-peer
+  networkId: dvpn-network
+  listenAddress: 0.0.0.0:7051
+  chaincodeListenAddress: 0.0.0.0:7052
+  address: 0.0.0.0:7051
+  addressAutoDetect: true
+  gomaxprocs: -1
+  
+  # Gossip related configuration
+  gossip:
+    bootstrap: 127.0.0.1:7051
+    useLeaderElection: true
+    orgLeader: false
+    membershipTrackerInterval: 5s
+    maxBlockCountToStore: 100
+    maxPropagationBurstLatency: 10ms
+    maxPropagationBurstSize: 10
+    propagateIterations: 1
+    propagatePeerNum: 3
+    pullInterval: 4s
+    pullPeerNum: 3
+    requestStateInfoInterval: 4s
+    publishStateInfoInterval: 4s
+    skipBlockVerification: false
+    dialTimeout: 3s
+    connTimeout: 2s
+    recvBuffSize: 20
+    sendBuffSize: 200
+    digestWaitTime: 1s
+    requestWaitTime: 1s
+    responseWaitTime: 2s
+    aliveTimeInterval: 5s
+    aliveExpirationTimeout: 25s
+    reconnectInterval: 25s
+    maxConnectionAttempts: 120
+    msgExpirationFactor: 20
+
+  # TLS configuration
+  tls:
+    enabled: true
+    clientAuthRequired: false
+    cert:
+      file: /opt/dvpn-iot/blockchain/crypto/peer/tls/server.crt
+    key:
+      file: /opt/dvpn-iot/blockchain/crypto/peer/tls/server.key
+    rootcert:
+      file: /opt/dvpn-iot/blockchain/crypto/peer/tls/ca.crt
+    clientRootCAs:
+      files:
+        - /opt/dvpn-iot/blockchain/crypto/peer/tls/ca.crt
+
+  # Authentication configuration
+  authentication:
+    timewindow: 15m
+
+  # BCCSP (Blockchain Crypto Service Provider) Security Level
+  BCCSP:
+    Default: SW
+    SW:
+      Hash: SHA2
+      Security: 256
+      FileKeyStore:
+        KeyStore: /opt/dvpn-iot/blockchain/crypto/peer/msp/keystore
+
+  # File Ledger configuration
+  fileSystemPath: /opt/dvpn-iot/blockchain/ledger
+  mspConfigPath: /opt/dvpn-iot/blockchain/crypto/peer/msp
+  localMspId: DVPNMSP
+  
+  # Delivery Service configuration
+  deliveryclient:
+    reconnectTotalTimeThreshold: 3600s
+    connTimeout: 3s
+    reConnectBackoffThreshold: 3600s
+
+  # Chaincode configuration
+  chaincode:
+    builder: $(DOCKER_NS)/fabric-ccenv:$(PROJECT_VERSION)
+    pull: false
+    golang:
+      runtime: $(DOCKER_NS)/fabric-baseos:$(PROJECT_VERSION)
+      dynamicLink: false
+    node:
+      runtime: $(DOCKER_NS)/fabric-nodeenv:$(PROJECT_VERSION)
+    installTimeout: 300s
+    startuptimeout: 300s
+    executetimeout: 30s
+    mode: net
+    keepalive: 0
+    system:
+      cscc: enable
+      lscc: enable
+      qscc: enable
+    logging:
+      level: info
+      format: '%{color}%{time:2006-01-02 15:04:05.000 MST} [%{module}] %{shortfunc} -> %{level:.4s} %{id:03x}%{color:reset} %{message}'
+
+  # Ledger configuration
+  ledger:
+    blockchain:
+      deploy-system-chaincode: true
+    state:
+      stateDatabase: goleveldb
+      couchDBConfig:
+        couchDBAddress: localhost:5984
+        username:
+        password:
+        maxRetries: 3
+        maxRetriesOnStartup: 10
+        requestTimeout: 35s
+        queryLimit: 10000
+        maxBatchUpdateSize: 1000
+        warmIndexesAfterNBlocks: 1
+    history:
+      enableHistoryDatabase: true
+
+# VM configuration
+vm:
+  endpoint: unix:///var/run/docker.sock
+  docker:
+    tls:
+      enabled: false
+      ca:
+        file: 
+      cert:
+        file: 
+      key:
+        file: 
+    attachStdout: false
+    hostConfig:
+      NetworkMode: host
+      Dns:
+       - 8.8.8.8
+       - 8.8.4.4
+      LogConfig:
+        Type: json-file
+        Config:
+          max-size: "50m"
+          max-file: "5"
+      Memory: 2147483648
+
+# Operations Server configuration
+operations:
+  listenAddress: 127.0.0.1:9443
+  tls:
+    enabled: true
+    cert:
+      file: /opt/dvpn-iot/blockchain/crypto/peer/tls/server.crt
+    key:
+      file: /opt/dvpn-iot/blockchain/crypto/peer/tls/server.key
+    clientAuthRequired: false
+    clientRootCAs:
+      files:
+        - /opt/dvpn-iot/blockchain/crypto/peer/tls/ca.crt
+
+# Metrics configuration
+metrics:
+  provider: prometheus
+  statsd:
+    network: udp
+    address: 127.0.0.1:8125
+    writeInterval: 10s
+    prefix: dvpn

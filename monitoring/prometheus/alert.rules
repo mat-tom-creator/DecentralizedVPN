@@ -1,0 +1,29 @@
+groups:
+- name: dvpn_alerts
+  rules:
+  - alert: HighLatency
+    expr: vpn_latency > 100
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: High VPN latency detected
+      description: VPN latency is above 100ms for 5 minutes
+
+  - alert: LowNodeCount
+    expr: up{job="vpn_nodes"} < 3
+    for: 5m
+    labels:
+      severity: critical
+    annotations:
+      summary: Low VPN node count
+      description: Less than 3 VPN nodes are active
+
+  - alert: BlockchainSyncIssue
+    expr: fabric_blockchain_height_difference > 10
+    for: 5m
+    labels:
+      severity: critical
+    annotations:
+      summary: Blockchain sync issue
+      description: Nodes are out of sync by more than 10 blocks

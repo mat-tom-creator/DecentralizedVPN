@@ -1,0 +1,16 @@
+# Alert on potential blockchain DOS attempts
+alert tcp $EXTERNAL_NET any -> $HOME_NET 7050:7054 (msg:"Potential Fabric DOS attempt"; \\
+    flow:to_server; \\
+    detection_filter:track by_src, count 100, seconds 60; \\
+    classtype:attempted-dos; \\
+    sid:5000001; \\
+    rev:1;)
+
+# Alert on unauthorized chaincode deployment attempts
+alert tcp $EXTERNAL_NET any -> $HOME_NET 7052 (msg:"Unauthorized chaincode deployment attempt"; \\
+    flow:to_server; \\
+    content:"deploy"; nocase; \\
+    content:"chaincode"; nocase; \\
+    classtype:policy-violation; \\
+    sid:5000002; \\
+    rev:1;)

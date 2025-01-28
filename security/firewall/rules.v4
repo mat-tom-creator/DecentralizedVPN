@@ -1,0 +1,106 @@
+# IPv4 Firewall Rules for dVPN IoT System
+*filter
+:INPUT DROP [0:0]
+:FORWARD DROP [0:0]
+:OUTPUT ACCEPT [0:0]
+
+# Custom chains for specific services
+:SERVICES - [0:0]
+:DOCKER-USER - [0:0]
+:VPN - [0:0]
+:BLOCKCHAIN - [0:0]
+:MONITORING - [0:0]
+:DOS-PROTECT - [0:0]
+
+# Allow established connections
+-A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+
+# Allow loopback
+-A INPUT -i lo -j ACCEPT
+-A OUTPUT -o lo -j ACCEPT
+
+# Anti-spoofing rules
+-A INPUT -s 127.0.0.0/8 ! -i lo -j DROP
+-A INPUT -s 169.254.0.0/16 -j DROP
+-A INPUT -s 172.16.0.0/12 -j DROP
+-A INPUT -s 192.168.0.0/16 -j DROP
+-A INPUT -s 10.0.0.0/8 -j DROP
+-A INPUT -s 0.0.0.0/8 -j DROP
+-A INPUT -s 240.0.0.0/5 -j DROP
+-A INPUT -s 127.0.0.0/8 -j DROP
+
+# Rate limiting for new connections (DOS protection)
+-A INPUT -p tcp -m conntrack --ctstate NEW -j DOS-PROTECT
+-A DOS-PROTECT -m hashlimit --hashlimit-above 50/sec --hashlimit-burst 100 --hashlimit-mode srcip --hashlimit-name conn_rate_limit -j DROP
+-A DOS-PROTECT -m hashlimit --hashlimit-above 20/sec --hashlimit-burst 50 --hashlimit-mode srcip,dstport --hashlimit-name per_port_conn_rate_limit -j DROP
+
+# Basic service rules
+-A INPUT -p tcp --dport 22 -m conntrack --ctstate NEW -j SERVICES
+-A SERVICES -p tcp --dport 22 -m recent --name SSH --set
+-A SERVICES -p tcp --dport 22 -m recent --name SSH --rcheck --seconds 60 --hitcount 4 -j DROP
+-A SERVICES -p tcp --dport 22 -j ACCEPT
+
+# ICMP rules (allow ping with rate limiting)
+-A INPUT -p icmp --icmp-type echo-request -m hashlimit --hashlimit-upto 5/sec --hashlimit-burst 10 --hashlimit-mode srcip --hashlimit-name ping_limiter -j ACCEPT
+
+# VPN rules
+-A INPUT -p udp --dport 1194 -j VPN
+-A VPN -m conntrack --ctstate NEW -m recent --name VPN --set
+-A VPN -m conntrack --ctstate NEW -m recent --name VPN --rcheck --seconds 60 --hitcount 10 -j DROP
+-A VPN -j ACCEPT
+
+# Allow VPN forwarding
+-A FORWARD -i tun+ -j ACCEPT
+-A FORWARD -o tun+ -j ACCEPT
+-A FORWARD -i tun+ -o eth0 -m state --state RELATED,ESTABLISHED -j ACCEPT
+-A FORWARD -i eth0 -o tun+ -m state --state RELATED,ESTABLISHED -j ACCEPT
+
+# Blockchain rules
+-A INPUT -p tcp -m multiport --dports 7050,7051,7052,7053,7054 -j BLOCKCHAIN
+-A BLOCKCHAIN -m conntrack --ctstate NEW -m recent --name BLOCKCHAIN --set
+-A BLOCKCHAIN -m conntrack --ctstate NEW -m recent --name BLOCKCHAIN --rcheck --seconds 60 --hitcount 20 -j DROP
+-A BLOCKCHAIN -j ACCEPT
+
+# Monitoring rules
+-A INPUT -p tcp -m multiport --dports 9090,3000,9100 -j MONITORING
+-A MONITORING -m conntrack --ctstate NEW -m recent --name MONITORING --set
+-A MONITORING -m conntrack --ctstate NEW -m recent --name MONITORING --rcheck --seconds 60 --hitcount 10 -j DROP
+-A MONITORING -j ACCEPT
+
+# Docker rules
+-A DOCKER-USER -j RETURN
+
+# Log dropped packets (limit logging rate)
+-A INPUT -m limit --limit 5/min -j LOG --log-prefix "iptables_INPUT_denied: " --log-level 7
+-A FORWARD -m limit --limit 5/min -j LOG --log-prefix "iptables_FORWARD_denied: " --log-level 7
+
+COMMIT
+
+# NAT rules
+*nat
+:PREROUTING ACCEPT [0:0]
+:INPUT ACCEPT [0:0]
+:OUTPUT ACCEPT [0:0]
+:POSTROUTING ACCEPT [0:0]
+
+# NAT for VPN clients
+-A POSTROUTING -s 10.8.0.0/24 -o eth0 -j MASQUERADE
+
+COMMIT
+
+# Mangle rules for QoS
+*mangle
+:PREROUTING ACCEPT [0:0]
+:INPUT ACCEPT [0:0]
+:FORWARD ACCEPT [0:0]
+:OUTPUT ACCEPT [0:0]
+:POSTROUTING ACCEPT [0:0]
+
+# Mark VPN traffic for QoS
+-A FORWARD -i tun+ -j MARK --set-mark 0x1
+-A FORWARD -o tun+ -j MARK --set-mark 0x1
+
+# Mark blockchain traffic for QoS
+-A FORWARD -p tcp -m multiport --dports 7050,7051,7052,7053,7054 -j MARK --set-mark 0x2
+
+COMMIT
