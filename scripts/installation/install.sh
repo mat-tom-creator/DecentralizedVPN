@@ -72,6 +72,45 @@ install_fabric() {
     tar xzf fabric.tar.gz -C fabric-samples
     rm fabric.tar.gz
     
+    # Set up CA configuration
+    mkdir -p fabric-samples/test-network/organizations/fabric-ca/org1
+    mkdir -p fabric-samples/test-network/organizations/fabric-ca/org2
+    mkdir -p fabric-samples/test-network/organizations/fabric-ca/ordererOrg
+
+    # Create CA config files
+    cat > fabric-samples/test-network/organizations/fabric-ca/org1/fabric-ca-server-config.yaml <<EOF
+version: 1.4.0
+port: 7054
+operations:
+    listenAddress: 127.0.0.1:17054
+tls:
+    enabled: true
+    certfile: tls-cert.pem
+    keyfile: tls-key.pem
+EOF
+
+    cat > fabric-samples/test-network/organizations/fabric-ca/org2/fabric-ca-server-config.yaml <<EOF
+version: 1.4.0
+port: 8054
+operations:
+    listenAddress: 127.0.0.1:18054
+tls:
+    enabled: true
+    certfile: tls-cert.pem
+    keyfile: tls-key.pem
+EOF
+
+    cat > fabric-samples/test-network/organizations/fabric-ca/ordererOrg/fabric-ca-server-config.yaml <<EOF
+version: 1.4.0
+port: 9054
+operations:
+    listenAddress: 127.0.0.1:19054
+tls:
+    enabled: true
+    certfile: tls-cert.pem
+    keyfile: tls-key.pem
+EOF
+
     # Download Docker images
     curl -sSL --insecure https://raw.githubusercontent.com/hyperledger/fabric/main/scripts/install-fabric.sh | bash -s -- binary docker
     
@@ -124,31 +163,16 @@ create_directory_structure() {
         mkdir -p "${BASE_DIR}/${dir}"
         echo "Created directory: ${BASE_DIR}/${dir}"
     done
-}
 
-# Function to set permissions
-set_permissions() {
-    echo "Setting directory permissions..."
-    
-    # Set base permissions
-    chown -R $USER:$USER "${BASE_DIR}"
-    chmod 755 "${BASE_DIR}"
-    
-    # Set secure permissions for sensitive directories
-    chmod 700 "${BASE_DIR}/vpn/certificates"
-    chmod 700 "${BASE_DIR}/security"
-    chmod 700 "${BASE_DIR}/blockchain/config"
-    
-    # Set executable permissions for scripts
-    find "${BASE_DIR}/scripts" -type f -name "*.sh" -exec chmod +x {} \;
-    find "${BASE_DIR}/monitoring/collectors" -type f -name "*.py" -exec chmod +x {} \;
+    # Set proper permissions
+    chmod -R 755 "${BASE_DIR}"
 }
 
 # Function to configure services
 configure_services() {
     echo "Configuring services..."
     
-    # Create local prometheus config
+    # Configure Prometheus
     mkdir -p "${BASE_DIR}/monitoring/prometheus"
     cat > "${BASE_DIR}/monitoring/prometheus/prometheus.yml" <<EOF
 global:
@@ -166,7 +190,7 @@ scrape_configs:
       - targets: ['localhost:9104']
 EOF
 
-    # Create local grafana config
+    # Configure Grafana
     mkdir -p "${BASE_DIR}/monitoring/grafana/provisioning/datasources"
     cat > "${BASE_DIR}/monitoring/grafana/provisioning/datasources/prometheus.yml" <<EOF
 apiVersion: 1
@@ -177,6 +201,22 @@ datasources:
     url: http://localhost:9090
     isDefault: true
 EOF
+}
+
+# Function to start blockchain network
+start_blockchain_network() {
+    echo "Starting blockchain network..."
+    cd "${BASE_DIR}/fabric-samples/test-network"
+
+    # Clean up any existing network
+    ./network.sh down
+
+    # Start the network with CA
+    ./network.sh up -ca
+    sleep 10  # Wait for CAs to initialize
+
+    # Create the channel
+    ./network.sh createChannel -c dvpnchannel
 }
 
 # Function to verify installation
@@ -283,16 +323,17 @@ main() {
     # Install Hyperledger Fabric
     install_fabric
     
-    # Set proper permissions
-    set_permissions
-    
     # Configure services
     configure_services
+    
+    # Start blockchain network
+    start_blockchain_network
     
     # Verify installation
     verify_installation
     
     echo "Installation completed successfully at $(date)"
+    echo "Please log out and log back in for group changes to take effect"
 }
 
 # Trap errors
