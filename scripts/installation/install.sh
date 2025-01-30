@@ -102,6 +102,45 @@ install_fabric() {
     tar xzf fabric.tar.gz -C fabric-samples
     rm fabric.tar.gz
     
+    # Set up CA configuration
+    mkdir -p fabric-samples/test-network/organizations/fabric-ca/org1
+    mkdir -p fabric-samples/test-network/organizations/fabric-ca/org2
+    mkdir -p fabric-samples/test-network/organizations/fabric-ca/ordererOrg
+
+    # Create CA config files
+    cat > fabric-samples/test-network/organizations/fabric-ca/org1/fabric-ca-server-config.yaml <<EOF
+version: 1.4.0
+port: 7054
+operations:
+    listenAddress: 127.0.0.1:17054
+tls:
+    enabled: true
+    certfile: tls-cert.pem
+    keyfile: tls-key.pem
+EOF
+
+    cat > fabric-samples/test-network/organizations/fabric-ca/org2/fabric-ca-server-config.yaml <<EOF
+version: 1.4.0
+port: 8054
+operations:
+    listenAddress: 127.0.0.1:18054
+tls:
+    enabled: true
+    certfile: tls-cert.pem
+    keyfile: tls-key.pem
+EOF
+
+    cat > fabric-samples/test-network/organizations/fabric-ca/ordererOrg/fabric-ca-server-config.yaml <<EOF
+version: 1.4.0
+port: 9054
+operations:
+    listenAddress: 127.0.0.1:19054
+tls:
+    enabled: true
+    certfile: tls-cert.pem
+    keyfile: tls-key.pem
+EOF
+
     # Download Docker images
     curl -sSL --insecure https://raw.githubusercontent.com/hyperledger/fabric/main/scripts/install-fabric.sh | bash -s -- binary docker
     
@@ -154,8 +193,8 @@ create_directory_structure() {
         mkdir -p "${BASE_DIR}/${dir}"
         echo "Created directory: ${BASE_DIR}/${dir}"
     done
-}
 
+<<<<<<< HEAD
 # Function to set permissions
 set_permissions() {
     echo "Setting directory permissions..."
@@ -172,6 +211,67 @@ set_permissions() {
     # Set executable permissions for scripts
     find "${BASE_DIR}" -type f -name "*.sh" -exec chmod +x {} \;
     find "${BASE_DIR}" -type f -name "*.py" -exec chmod +x {} \;
+=======
+    # Set proper permissions
+    chmod -R 755 "${BASE_DIR}"
+}
+
+# Function to configure services
+configure_services() {
+    echo "Configuring services..."
+    
+    # Configure Prometheus
+    mkdir -p "${BASE_DIR}/monitoring/prometheus"
+    cat > "${BASE_DIR}/monitoring/prometheus/prometheus.yml" <<EOF
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'blockchain'
+    static_configs:
+      - targets: ['localhost:9106']
+  - job_name: 'vpn'
+    static_configs:
+      - targets: ['localhost:9103']
+  - job_name: 'device'
+    static_configs:
+      - targets: ['localhost:9104']
+EOF
+
+    # Configure Grafana
+    mkdir -p "${BASE_DIR}/monitoring/grafana/provisioning/datasources"
+    cat > "${BASE_DIR}/monitoring/grafana/provisioning/datasources/prometheus.yml" <<EOF
+apiVersion: 1
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxygit pull origin main
+From https://github.com/mat-tom-creator/DecentralizedVPN
+ * branch            main       -> FETCH_HEAD
+Auto-merging scripts/installation/install.sh
+CONFLICT (content): Merge conflict in scripts/installation/install.sh
+Automatic merge failed; fix conflicts and then commit the result.
+
+    url: http://localhost:9090
+    isDefault: true
+EOF
+>>>>>>> 5926499066dc75b6144f8b7043da19efc8b47604
+}
+
+# Function to start blockchain network
+start_blockchain_network() {
+    echo "Starting blockchain network..."
+    cd "${BASE_DIR}/fabric-samples/test-network"
+
+    # Clean up any existing network
+    ./network.sh down
+
+    # Start the network with CA
+    ./network.sh up -ca
+    sleep 10  # Wait for CAs to initialize
+
+    # Create the channel
+    ./network.sh createChannel -c dvpnchannel
 }
 
 # Function to verify installation
@@ -256,6 +356,7 @@ main() {
     create_directory_structure
     install_dependencies
     install_fabric
+<<<<<<< HEAD
     configure_monitoring
     configure_firewall
     set_permissions
@@ -263,6 +364,20 @@ main() {
     
     echo "Installation completed successfully at $(date)"
     echo "Installation log available at: ${LOGFILE}"
+=======
+    
+    # Configure services
+    configure_services
+    
+    # Start blockchain network
+    start_blockchain_network
+    
+    # Verify installation
+    verify_installation
+    
+    echo "Installation completed successfully at $(date)"
+    echo "Please log out and log back in for group changes to take effect"
+>>>>>>> 5926499066dc75b6144f8b7043da19efc8b47604
 }
 
 # Trap errors
