@@ -4,12 +4,37 @@
 BASE_DIR="$HOME/Documents/dvpn-iot"
 LOG_DIR="${BASE_DIR}/logs/installation"
 
-# Create log directory
+# Create log directory with timestamp
 mkdir -p "${LOG_DIR}"
-exec 1> >(tee -a "${LOG_DIR}/install.log")
+LOGFILE="${LOG_DIR}/install_$(date +%Y%m%d_%H%M%S).log"
+exec 1> >(tee -a "${LOGFILE}")
 exec 2>&1
 
 echo "Starting installation at $(date)"
+
+# Function to check system requirements
+check_requirements() {
+    echo "Checking system requirements..."
+    
+    # Check RAM
+    total_ram=$(free -m | awk '/^Mem:/{print $2}')
+    if [ ${total_ram} -lt 4000 ]; then
+        echo "ERROR: System requires at least 4GB RAM"
+        exit 1
+    fi
+    
+    # Check disk space
+    free_space=$(df -m "${BASE_DIR}" | awk 'NR==2 {print $4}')
+    if [ ${free_space} -lt 20000 ]; then
+        echo "ERROR: System requires at least 20GB free disk space"
+        exit 1
+    fi
+    
+    # Check Ubuntu version
+    if ! grep -q "Ubuntu 22.04" /etc/os-release; then
+        echo "WARNING: This script is tested on Ubuntu 22.04"
+    fi
+}
 
 # Function to check root privileges
 check_root() {
@@ -47,9 +72,13 @@ install_dependencies() {
     # Add user to docker group
     usermod -aG docker $USER
 
-    # Start and enable Docker
+    # Start and enable services
     systemctl start docker
     systemctl enable docker
+    systemctl start prometheus
+    systemctl enable prometheus
+    systemctl start grafana-server
+    systemctl enable grafana-server
 }
 
 # Function to install Hyperledger Fabric
@@ -63,7 +92,8 @@ install_fabric() {
     
     # Clone Fabric samples repository
     if [ -d "fabric-samples" ]; then
-        mv fabric-samples fabric-samples.bak
+        timestamp=$(date +%Y%m%d_%H%M%S)
+        mv fabric-samples "fabric-samples.bak.${timestamp}"
     fi
     git clone --branch main --depth 1 https://github.com/hyperledger/fabric-samples.git
     
@@ -106,7 +136,7 @@ create_directory_structure() {
         "monitoring/grafana/dashboards"
         "monitoring/collectors"
         "iot-client/src"
-        "iot-client/config/connection-profiles"
+        "iot-client/config"
         "iot-client/certificates"
         "security/firewall"
         "security/ids"
@@ -140,43 +170,8 @@ set_permissions() {
     chmod 700 "${BASE_DIR}/blockchain/config"
     
     # Set executable permissions for scripts
-    find "${BASE_DIR}/scripts" -type f -name "*.sh" -exec chmod +x {} \;
-    find "${BASE_DIR}/monitoring/collectors" -type f -name "*.py" -exec chmod +x {} \;
-}
-
-# Function to configure services
-configure_services() {
-    echo "Configuring services..."
-    
-    # Create local prometheus config
-    mkdir -p "${BASE_DIR}/monitoring/prometheus"
-    cat > "${BASE_DIR}/monitoring/prometheus/prometheus.yml" <<EOF
-global:
-  scrape_interval: 15s
-
-scrape_configs:
-  - job_name: 'blockchain'
-    static_configs:
-      - targets: ['localhost:9106']
-  - job_name: 'vpn'
-    static_configs:
-      - targets: ['localhost:9103']
-  - job_name: 'device'
-    static_configs:
-      - targets: ['localhost:9104']
-EOF
-
-    # Create local grafana config
-    mkdir -p "${BASE_DIR}/monitoring/grafana/provisioning/datasources"
-    cat > "${BASE_DIR}/monitoring/grafana/provisioning/datasources/prometheus.yml" <<EOF
-apiVersion: 1
-datasources:
-  - name: Prometheus
-    type: prometheus
-    access: proxy
-    url: http://localhost:9090
-    isDefault: true
-EOF
+    find "${BASE_DIR}" -type f -name "*.sh" -exec chmod +x {} \;
+    find "${BASE_DIR}" -type f -name "*.py" -exec chmod +x {} \;
 }
 
 # Function to verify installation
@@ -234,18 +229,6 @@ verify_installation() {
     fi
 }
 
-# Function to perform backup
-backup_existing() {
-    echo "Backing up existing installation..."
-    
-    if [ -d "${BASE_DIR}" ]; then
-        BACKUP_DIR="$HOME/Documents/dvpn-iot-backup/$(date +%Y%m%d_%H%M%S)"
-        mkdir -p "${BACKUP_DIR}"
-        cp -r "${BASE_DIR}" "${BACKUP_DIR}/"
-        echo "Backup created at: ${BACKUP_DIR}"
-    fi
-}
-
 # Function to handle cleanup on failure
 cleanup_on_failure() {
     echo "Installation failed, cleaning up..."
@@ -262,37 +245,24 @@ cleanup_on_failure() {
         systemctl stop "${service}" 2>/dev/null
     done
     
-    echo "Cleanup completed"
+    echo "Cleanup completed. Check ${LOGFILE} for details."
     exit 1
 }
 
 # Main installation flow
 main() {
-    # Check root privileges
     check_root
-    
-    # Backup existing installation
-    backup_existing
-    
-    # Create directory structure
+    check_requirements
     create_directory_structure
-    
-    # Install dependencies
     install_dependencies
-    
-    # Install Hyperledger Fabric
     install_fabric
-    
-    # Set proper permissions
+    configure_monitoring
+    configure_firewall
     set_permissions
-    
-    # Configure services
-    configure_services
-    
-    # Verify installation
     verify_installation
     
     echo "Installation completed successfully at $(date)"
+    echo "Installation log available at: ${LOGFILE}"
 }
 
 # Trap errors
