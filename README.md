@@ -1,8 +1,5 @@
 # dVPN IoT System Installation Guide
 
-
-# dVPN IoT System Installation Guide
-
 ## Prerequisites
 
 - Ubuntu 22.04 LTS
