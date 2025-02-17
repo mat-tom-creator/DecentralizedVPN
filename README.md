@@ -1,215 +1,258 @@
 # dVPN IoT System Installation Guide
 
-## System Requirements
+
+# dVPN IoT System Installation Guide
+
+## Prerequisites
+
 - Ubuntu 22.04 LTS
-- 4GB RAM minimum
+- Minimum 4GB RAM
 - 20GB free disk space
 - Root or sudo access
 - Internet connection
 
 ## 1. Initial Setup
 
-### Update System
 ```bash
-sudo apt update
-sudo apt upgrade -y
+# Create project directory
+mkdir -p /home/$USER/Documents/dvpn-iot
+cd /home/$USER/Documents/dvpn-iot
+
+# Clone the repository
+git clone https://github.com/mat-tom-creator/DecentralizedVPN .
+
+# Install system dependencies
+sudo apt-get update
+sudo apt-get install -y \
+    curl \
+    git \
+    docker.io \
+    docker-compose \
+    openvpn \
+    prometheus \
+    grafana \
+    python3 \
+    python3-pip \
+    ca-certificates \
+    jq \
+    golang-go \
+    build-essential
+
+# Install Hyperledger Fabric prerequisites
+curl -sSL https://raw.githubusercontent.com/hyperledger/fabric/main/scripts/bootstrap.sh | bash -s
+
+# Add Docker permissions
+sudo usermod -aG docker $USER
+
+# Install Hyperledger Fabric samples, binaries, and Docker images
+curl -sSL https://bit.ly/2ysbOFE | bash -s -- 2.5.0 1.5.5
+
+# Add Fabric binaries to PATH
+echo 'export PATH=$PATH:$HOME/fabric-samples/bin' >> ~/.bashrc
+source ~/.bashrc
+
+# Verify installations
+fabric-ca-client version
+peer version
 ```
 
-### Install Basic Dependencies
-```bash
-sudo apt install -y git ufw curl wget
-```
+## 2. Run Installation Scripts
 
-### Clone Repository
-```bash
-cd ~/Documents
-git clone https://github.com/mat-tom-creator/DecentralizedVPN dvpn-iot
-cd dvpn-iot
-```
-
-### Create Directory Structure
-```bash
-mkdir -p scripts/installation
-mkdir -p blockchain/network
-mkdir -p vpn/scripts
-mkdir -p monitoring/collectors
-mkdir -p security/firewall
-mkdir -p logs/installation
-```
-
-## 2. Configure Firewall
-Configure firewall before main installation:
-
-```bash
-# Reset UFW to default
-sudo ufw reset
-sudo ufw default deny incoming
-sudo ufw default allow outgoing
-
-# Allow SSH (important to prevent lockout)
-sudo ufw allow ssh
-
-# Blockchain ports
-sudo ufw allow 7050/tcp comment 'Fabric orderer'
-sudo ufw allow 7051/tcp comment 'Fabric peer'
-sudo ufw allow 7052/tcp comment 'Fabric chaincode'
-sudo ufw allow 7053/tcp comment 'Fabric events'
-
-# VPN ports
-sudo ufw allow 1194/udp comment 'OpenVPN'
-
-# Monitoring ports
-sudo ufw allow 3000/tcp comment 'Grafana'
-sudo ufw allow 9090/tcp comment 'Prometheus'
-sudo ufw allow 9103/tcp comment 'VPN metrics'
-sudo ufw allow 9104/tcp comment 'Device metrics'
-sudo ufw allow 9106/tcp comment 'Blockchain metrics'
-
-# Enable UFW
-sudo ufw enable
-
-# Verify rules
-sudo ufw status numbered
-```
-
-## 3. Run Installation Scripts
-
-### Prepare Installation
 ```bash
 # Make scripts executable
-chmod +x scripts/installation/install.sh
-chmod +x vpn/scripts/*.sh
-chmod +x monitoring/collectors/*.sh
-chmod +x security/firewall/*.sh
-```
+chmod +x scripts/installation/*.sh
 
-### Run Main Installation
-```bash
+# Run main installation script
 sudo ./scripts/installation/install.sh
+
 ```
 
-The script will automatically:
-- Check system requirements
-- Install dependencies
-- Configure services
-- Initialize configurations
+The script will:
 
-## 4. Setup VPN
+- Create directory structure
+- Install dependencies
+- Configure basic services
+- Set up environment variables
+- Initialize security settings
+
+## 3. Setup VPN
+
 ```bash
-# Configure VPN
+# Make VPN scripts executable
+chmod +x vpn/scripts/*.sh
+
+# Run VPN setup
 sudo ./vpn/scripts/setup-vpn.sh
 
-# Create initial client certificate
+# Create a client (example)
 sudo ./vpn/scripts/manage-clients.sh create client1
+
 ```
 
-## 5. Setup Blockchain Network
+## 4. Setup Blockchain Network
+
 ```bash
 cd blockchain/network
 
-# Start network
-./scripts/network.sh up
+# Start the network
+sudo ./scripts/network.sh up
 
 # Create channel
-./scripts/network.sh createChannel
+sudo ./scripts/network.sh createChannel
 
 # Deploy chaincode
-./scripts/network.sh deployCC
+sudo ./scripts/network.sh deployCC
+
 ```
 
-## 6. Configure Monitoring
+## 5. Configure Firewall
 
-### Start Core Services
 ```bash
-# Start and enable Prometheus
+# Allow required ports
+sudo ufw allow 7050/tcp  # Fabric orderer
+sudo ufw allow 7051/tcp  # Fabric peer
+sudo ufw allow 1194/udp  # OpenVPN
+sudo ufw allow 3000/tcp  # Grafana
+sudo ufw allow 9090/tcp  # Prometheus
+sudo ufw allow 9103/tcp  # VPN metrics
+sudo ufw allow 9104/tcp  # Device metrics
+sudo ufw allow 9106/tcp  # Blockchain metrics
+
+# Enable firewall
+sudo ufw enable
+
+```
+
+## 6. Start Monitoring
+
+```bash
+# Start monitoring services
 sudo systemctl start prometheus
-sudo systemctl enable prometheus
-
-# Start and enable Grafana
 sudo systemctl start grafana-server
-sudo systemctl enable grafana-server
-```
 
-### Start Collectors
-```bash
-# Start metric collectors
+# Start monitoring collectors
 sudo ./monitoring/collectors/collect_metrics.sh &
-sudo ./monitoring/collectors/vpn_metrics.py &
-sudo ./monitoring/collectors/blockchain_metrics.py &
-sudo ./monitoring/collectors/device_metrics.py &
+python3 ./monitoring/collectors/vpn_metrics.py &
+python3 ./monitoring/collectors/blockchain_metrics.py &
+python3 ./monitoring/collectors/device_metrics.py &
+
 ```
 
-## 7. Setup Alerts and Reports
+## 7. Setup Alert System
 
-### Configure Alert System
 ```bash
 # Start alert handler
 sudo ./scripts/monitoring/alert_handler.sh &
-```
 
-### Setup Automated Reports
-```bash
-# Add to crontab
-(crontab -l 2>/dev/null; echo "0 0 * * * ${HOME}/Documents/dvpn-iot/scripts/monitoring/generate_reports.sh daily") | crontab -
-(crontab -l 2>/dev/null; echo "0 0 * * 0 ${HOME}/Documents/dvpn-iot/scripts/monitoring/generate_reports.sh weekly") | crontab -
-(crontab -l 2>/dev/null; echo "0 0 1 * * ${HOME}/Documents/dvpn-iot/scripts/monitoring/generate_reports.sh monthly") | crontab -
+# Configure report generation
+sudo crontab -e
+
+# Add these lines:
+0 0 * * * /Documents/dvpn-iot/scripts/monitoring/generate_reports.sh daily
+0 0 * * 0 /Documents/dvpn-iot/scripts/monitoring/generate_reports.sh weekly
+0 0 1 * * /Documents/dvpn-iot/scripts/monitoring/generate_reports.sh monthly
+
 ```
 
 ## 8. Verify Installation
 
-### Check Services
 ```bash
-for service in docker openvpn prometheus grafana-server; do
-    echo "Checking $service..."
-    sudo systemctl status $service
-done
-```
+# Check services status
+sudo systemctl status openvpn
+sudo systemctl status docker
+sudo systemctl status prometheus
+sudo systemctl status grafana-server
 
-### Verify Ports
-```bash
-sudo netstat -tulpn | grep -E '7050|7051|1194|3000|9090|9103|9104|9106'
-```
+# Check VPN status
+sudo ./vpn/scripts/manage-clients.sh list
 
-### Check Blockchain
-```bash
+# Check blockchain status
 cd blockchain/network
-./scripts/network.sh status
+sudo ./scripts/network.sh status
+
+# Check monitoring
+curl localhost:9090/metrics  # Prometheus
+curl localhost:3000  # Grafana
+
 ```
 
 ## 9. Access Dashboards
 
-### Grafana Dashboard
-- URL: http://localhost:3000
-- Default login: admin/admin
+### Grafana
+
+- URL: [http://localhost:3000](http://localhost:3000/)
+- Default credentials: admin/admin
 - Available dashboards:
-  - System Overview
-  - VPN Status
-  - Blockchain Metrics
-  - Device Status
+    - System Overview
+    - VPN Performance
+    - Blockchain Metrics
+    - IoT Device Status
 
 ### Prometheus
-- URL: http://localhost:9090
 
-## 10. Regular Maintenance
+- URL: [http://localhost:9090](http://localhost:9090/)
+- Metrics endpoints:
+    - Blockchain: :9106
+    - VPN: :9103
+    - Device: :9104
 
-### System Updates
+## 10. Maintenance
+
+### Regular Updates
+
 ```bash
-sudo ./scripts/maintenance/update.sh
+# System updates
+sudo apt-get update
+sudo apt-get upgrade -y
+
+# Docker images
+docker pull hyperledger/fabric-peer:latest
+docker pull hyperledger/fabric-orderer:latest
+
 ```
 
-### Backup System
+### Backup
+
 ```bash
+# Run backup
 sudo ./scripts/maintenance/backup.sh
+
+# Check system health
+sudo ./scripts/maintenance/health_check.sh
+
 ```
 
-### Health Check
-```bash
-sudo ./scripts/maintenance/system_health.sh
+## 11. Directory Structure
+
+```
+/home/$USER/Documents/dvpn-iot/
+├── blockchain/
+│   ├── chaincode/
+│   ├── config/
+│   └── network/
+├── vpn/
+│   ├── config/
+│   ├── certificates/
+│   └── scripts/
+├── monitoring/
+│   ├── prometheus/
+│   ├── grafana/
+│   └── collectors/
+├── security/
+│   ├── firewall/
+│   └── ssl/
+├── logs/
+└── scripts/
+    ├── installation/
+    ├── maintenance/
+    └── monitoring/
+
 ```
 
-## 11. Installation Modes
+## 12. Installation Modes
 
 ### Development Mode
+
 ```bash
 # Install with development settings
 sudo ./scripts/installation/install.sh --dev
@@ -217,61 +260,26 @@ sudo ./scripts/installation/install.sh --dev
 # Enable debug logging
 export DEBUG=true
 
-# Install additional development tools
-sudo apt install -y golang-go nodejs npm python3-pip
+# Additional development tools
+sudo apt-get install -y \\
+    golang-go \\
+    nodejs \\
+    npm
+
 ```
 
 ### Production Mode
+
 ```bash
-# Install with production hardening
+# Install with production settings
 sudo ./scripts/installation/install.sh --prod
 
 # Enable security hardening
 sudo ./scripts/security/harden.sh
 
-# Configure automatic updates
-sudo apt install unattended-upgrades
-sudo dpkg-reconfigure --priority=low unattended-upgrades
+# Enable automatic updates
+sudo systemctl enable dvpn-autoupdate
+
 ```
 
-## 12. Troubleshooting
-
-### Check Logs
-```bash
-# VPN logs
-sudo tail -f /var/log/openvpn/openvpn.log
-
-# Blockchain logs
-sudo tail -f logs/blockchain/fabric.log
-
-# Monitoring logs
-sudo tail -f logs/monitoring/prometheus.log
-sudo tail -f logs/monitoring/grafana.log
-```
-
-### Common Issues
-1. If services fail to start:
-```bash
-sudo systemctl restart docker
-sudo systemctl restart openvpn
-```
-
-2. If firewall blocks legitimate traffic:
-```bash
-sudo ufw status numbered
-sudo ufw delete [rule-number]
-```
-
-3. If blockchain network fails:
-```bash
-./blockchain/network/scripts/network.sh teardown
-./blockchain/network/scripts/network.sh up
-```
-
-## 13. Security Recommendations
-
-1. Change default passwords
-2. Enable 2FA where possible
-3. Regular security updates
-4. Monitor system logs
-5. Regular backups
+For additional configuration options or troubleshooting, please refer to the project documentation or open an issue on the GitHub repository.
